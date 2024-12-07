@@ -24,10 +24,10 @@ async def create_tables():
 
 def connection(func):
     async def wrapper(*args, **kwargs):
-        session = kwargs.pop("session", None)
-        if session is None:
-            async with async_session() as session:
-                return await func(session=session, *args, **kwargs)
+        if "session" in kwargs:
+            return await func(*args, **kwargs)
         else:
-            return await func(session=session, *args, **kwargs)
+            async with async_session() as session:
+                return await func(session, *args, **kwargs)
+
     return wrapper
