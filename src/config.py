@@ -1,4 +1,8 @@
+import os
+
 from decouple import config as env_config
+
+os.makedirs("data", exist_ok=True)
 
 # telegram
 BOT_TOKEN = env_config("BOT_TOKEN")
