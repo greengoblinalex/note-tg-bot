@@ -1,10 +1,11 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
+from aiogram.exceptions import TelegramBadRequest
 
 from src.database import managers
 from ..states import CreateOrUpdateNoteStates
-from ..keyboards import main_menu_kb, note_kb
+from ..keyboards import main_menu_kb, note_kb, edit_kb
 from ..callback_datas import NoteCallbackData
 
 router = Router()
@@ -20,7 +21,7 @@ async def create_or_update_note_start(callback: CallbackQuery, state: FSMContext
         await state.update_data(title=note.title)
         await state.update_data(content=note.text)
         instruction_message = await callback.message.answer(
-            "Введите новую категорию заметки:"
+            "Введите новую категорию заметки:", reply_markup=edit_kb()
         )
     else:
         instruction_message = await callback.message.answer(
@@ -35,12 +36,15 @@ async def create_or_update_note_start(callback: CallbackQuery, state: FSMContext
 @router.message(CreateOrUpdateNoteStates.waiting_for_category)
 async def create_or_update_note_category(message: Message, state: FSMContext):
     user_data = await state.get_data()
-    await state.update_data(category=message.text)
+    if message.text.lower() != "пропустить":
+        await state.update_data(category=message.text)
     await message.bot.delete_message(
         chat_id=message.chat.id, message_id=user_data["instruction_message_id"]
     )
     await message.delete()
-    instruction_message = await message.answer("Введите заголовок заметки:")
+    instruction_message = await message.answer(
+        "Введите заголовок заметки:", reply_markup=edit_kb()
+    )
     await state.update_data(instruction_message_id=instruction_message.message_id)
     await state.set_state(CreateOrUpdateNoteStates.waiting_for_title)
 
@@ -48,12 +52,15 @@ async def create_or_update_note_category(message: Message, state: FSMContext):
 @router.message(CreateOrUpdateNoteStates.waiting_for_title)
 async def create_or_update_note_title(message: Message, state: FSMContext):
     user_data = await state.get_data()
-    await state.update_data(title=message.text)
+    if message.text.lower() != "пропустить":
+        await state.update_data(title=message.text)
     await message.bot.delete_message(
         chat_id=message.chat.id, message_id=user_data["instruction_message_id"]
     )
     await message.delete()
-    instruction_message = await message.answer("Введите содержимое заметки:")
+    instruction_message = await message.answer(
+        "Введите содержимое заметки:", reply_markup=edit_kb()
+    )
     await state.update_data(instruction_message_id=instruction_message.message_id)
     await state.set_state(CreateOrUpdateNoteStates.waiting_for_text)
 
@@ -61,22 +68,30 @@ async def create_or_update_note_title(message: Message, state: FSMContext):
 @router.message(CreateOrUpdateNoteStates.waiting_for_text)
 async def create_or_update_note_text(message: Message, state: FSMContext):
     user_data = await state.get_data()
-    category, title, text = user_data["category"], user_data["title"], message.text
+    if message.text.lower() != "пропустить":
+        text = message.text
+    else:
+        text = user_data.get("content", "")
+    category, title = user_data["category"], user_data["title"]
 
     if "note_id" in user_data:
         new_note = await managers.update_note(
             user_data["note_id"], category, title, text
         )
-        await message.bot.edit_message_text(
-            chat_id=message.chat.id,
-            message_id=user_data["main_menu_message_id"],
-            text=(
-                f"Category: {new_note.category}\nTitle: {new_note.title}"
-                f"\nCreated at: {new_note.created_at}\nUpdated at: {new_note.updated_at}"
-                f"\n\n{new_note.text}"
-            ),
-            reply_markup=await note_kb(new_note.id),
-        )
+        try:
+            await message.bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=user_data["main_menu_message_id"],
+                text=(
+                    f"Category: {new_note.category}\nTitle: {new_note.title}"
+                    f"\nCreated at: {new_note.created_at.strftime('%d.%m.%y %H:%M')}\nUpdated at: {new_note.updated_at.strftime('%d.%m.%y %H:%M')}"
+                    f"\n\n(Нажмите на текст заметки, чтобы скопировать его)\n<code>{new_note.text}</code>"
+                ),
+                reply_markup=await note_kb(new_note.id),
+            )
+        except TelegramBadRequest as e:
+            if "message is not modified" in str(e):
+                pass
     else:
         await managers.create_note(message.from_user.id, category, title, text)
         new_reply_markup = await main_menu_kb(message.from_user.id, 0)

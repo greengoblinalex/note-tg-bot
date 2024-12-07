@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from src.config import NOTES_PER_PAGE, FILTERS_PER_PAGE
 from src.database.managers import get_notes
@@ -139,3 +140,14 @@ async def note_kb(note_id):
     )
 
     return keyboard.as_markup()
+
+
+def edit_kb():
+    kb_list = [
+        [KeyboardButton(text="Пропустить")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb_list,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )

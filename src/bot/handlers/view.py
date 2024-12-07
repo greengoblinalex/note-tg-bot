@@ -14,8 +14,9 @@ async def get_note(callback: CallbackQuery, callback_data: NoteCallbackData):
     await callback.message.edit_text(
         text=(
             f"Category: {note.category}\nTitle: {note.title}"
-            f"\nCreated at: {note.created_at}\nUpdated at: {note.updated_at}"
-            f"\n\n{note.text}"
+            f"\nCreated at: {note.created_at.strftime('%d.%m.%y %H:%M')}\nUpdated at: {note.updated_at.strftime('%d.%m.%y %H:%M')}"
+            f"\n\n(Нажмите на текст заметки, чтобы скопировать его)\n<code>{note.text}</code>"
         ),
         reply_markup=await note_kb(note.id),
+        parse_mode="HTML",
     )
